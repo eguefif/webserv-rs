@@ -24,21 +24,46 @@ impl Worker {
     // TODO: handle remaining if there are
     fn next(&mut self) -> std::io::Result<Option<Request>> {
         let mut buffer = String::new();
+        let mut request;
         loop {
-            let mut tmp = [0u8; 10000];
+            let mut tmp = [0u8; 1024];
             let n = self.socket.read(&mut tmp)?;
             if n == 0 {
                 return Ok(None);
             }
             buffer.push_str(&String::from_utf8_lossy(&tmp[..n]));
             if is_header_end(&buffer) {
+                request = Request::new(&buffer);
+                if request.is_body() {
+                    let buffer = prepare_buffer_for_body(buffer);
+                    request.body = self.read_body(&buffer, &request)?;
+                }
                 break;
             }
         }
-        Ok(Some(Request::new(&buffer)))
+        Ok(Some(request))
+    }
+    fn read_body(&mut self, buffer: &str, request: &Request) -> std::io::Result<Vec<u8>> {
+        if let Some(body_length) = request.get_content_length() {
+            let mut body = Vec::with_capacity(body_length);
+            body.extend_from_slice(buffer.as_bytes());
+            self.socket.read_exact(&mut body)?;
+            return Ok(body);
+        }
+        Ok(vec![0u8; 0])
     }
 }
 
 fn is_header_end(buffer: &str) -> bool {
     buffer.contains("\r\n\r\n")
+}
+
+fn prepare_buffer_for_body(buffer: String) -> String {
+    let mut splits = buffer.split("\r\n\r\n");
+    splits.next().unwrap();
+    if let Some(remaining) = splits.next() {
+        remaining.to_string()
+    } else {
+        String::new()
+    }
 }
