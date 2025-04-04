@@ -11,18 +11,18 @@ impl Worker {
         Self { socket }
     }
 
-    pub fn handle_client(&mut self) {
+    pub fn run(&mut self, handle_client: fn(Request)) {
         loop {
-            if let Ok(header) = self.read_header() {
-                if let Some(header) = header {
-                    println!("{}", header);
+            if let Ok(request) = self.next() {
+                if let Some(request) = request {
+                    handle_client(request);
                 }
             }
         }
     }
 
     // TODO: handle remaining if there are
-    fn read_header(&mut self) -> std::io::Result<Option<Request>> {
+    fn next(&mut self) -> std::io::Result<Option<Request>> {
         let mut buffer = String::new();
         loop {
             let mut tmp = [0u8; 10000];
