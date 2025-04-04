@@ -13,7 +13,7 @@ impl Worker {
 
     pub fn run(&mut self, handle_client: fn(Request)) {
         loop {
-            if let Ok(request) = self.next() {
+            if let Ok(request) = self.get_request() {
                 if let Some(request) = request {
                     handle_client(request);
                 }
@@ -21,8 +21,7 @@ impl Worker {
         }
     }
 
-    // TODO: handle remaining if there are
-    fn next(&mut self) -> std::io::Result<Option<Request>> {
+    fn get_request(&mut self) -> std::io::Result<Option<Request>> {
         let mut buffer = String::new();
         let mut request;
         loop {
@@ -32,7 +31,7 @@ impl Worker {
                 return Ok(None);
             }
             buffer.push_str(&String::from_utf8_lossy(&tmp[..n]));
-            if is_header_end(&buffer) {
+            if is_header_finished(&buffer) {
                 request = Request::new(&buffer);
                 if request.is_body() {
                     let buffer = prepare_buffer_for_body(buffer);
@@ -43,6 +42,7 @@ impl Worker {
         }
         Ok(Some(request))
     }
+
     fn read_body(&mut self, buffer: &str, request: &Request) -> std::io::Result<Vec<u8>> {
         if let Some(body_length) = request.get_content_length() {
             let mut body = Vec::with_capacity(body_length);
@@ -54,7 +54,7 @@ impl Worker {
     }
 }
 
-fn is_header_end(buffer: &str) -> bool {
+fn is_header_finished(buffer: &str) -> bool {
     buffer.contains("\r\n\r\n")
 }
 
