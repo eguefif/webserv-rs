@@ -1,3 +1,4 @@
+use crate::request::Request;
 use std::io::Read;
 use std::net::TcpStream;
 
@@ -12,20 +13,31 @@ impl Worker {
 
     pub fn handle_client(&mut self) {
         loop {
-            let mut buffer = [0u8; 10000];
-            match self.socket.read(&mut buffer) {
-                Ok(n) => {
-                    if n == 0 {
-                        break;
-                    }
-                    self.handle_read(n, &buffer);
+            if let Ok(header) = self.read_header() {
+                if let Some(header) = header {
+                    println!("{}", header);
                 }
-                Err(e) => eprintln!("Error in worker: {e}"),
             }
         }
     }
 
-    fn handle_read(&mut self, n: usize, buffer: &[u8]) {
-        println!("{}: {}", n, String::from_utf8_lossy(buffer));
+    fn read_header(&mut self) -> std::io::Result<Option<Request>> {
+        let mut buffer = String::new();
+        loop {
+            let mut tmp = [0u8; 10000];
+            let n = self.socket.read(&mut tmp)?;
+            if n == 0 {
+                return Ok(None);
+            }
+            buffer.push_str(&String::from_utf8_lossy(&tmp[..n]));
+            if is_header_end(&buffer) {
+                break;
+            }
+        }
+        Ok(Some(Request::new(&buffer)))
     }
+}
+
+fn is_header_end(buffer: &str) -> bool {
+    buffer.contains("\r\n\r\n")
 }
