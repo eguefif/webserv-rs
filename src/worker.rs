@@ -1,3 +1,4 @@
+use crate::chunk_handler::ChunkHandler;
 use crate::encoding::{uncompress, Encoding};
 use crate::http_error::{handle_error, HttpError};
 use crate::request::Request;
@@ -44,7 +45,9 @@ impl Worker {
             if is_header_finished(&buffer) {
                 request = Request::new(&buffer);
                 if request.is_body() {
+                    println!("size: {}\n{:?}", buffer.len(), buffer);
                     let buffer = prepare_buffer_for_body(buffer);
+                    println!("Prepared buffer({}: {:?}", buffer.len(), buffer);
                     request.body = self.read_body(&buffer, &request)?;
                 }
                 break;
@@ -53,34 +56,41 @@ impl Worker {
         Ok(Some(request))
     }
 
-    fn read_body(&mut self, buffer: &str, request: &Request) -> Result<Vec<u8>, Box<dyn Error>> {
-        if let Some(encoding) = request.get_value("Transfer-Encoding") {
+    fn read_body(&mut self, buffer: &[u8], request: &Request) -> Result<Vec<u8>, Box<dyn Error>> {
+        let body = if let Some(encoding) = request.get_value("Transfer-Encoding") {
             self.handle_encoded_body(buffer, request, encoding)
         } else if let Some(body_length) = request.get_content_length() {
             self.handle_content_length_body(buffer, body_length)
         } else {
-            Err(Box::new(HttpError::Error400))
-        }
+            return Err(Box::new(HttpError::Error400));
+        }?;
+        let body = if let Some(encoding) = request.get_value("Content-Encoding") {
+            if let Some(encoding) = get_encoding(encoding) {
+                uncompress(&body, encoding)
+            } else {
+                return Err(Box::new(HttpError::Error415));
+            }
+        } else {
+            body
+        };
+
+        Ok(body)
     }
 
     fn handle_encoded_body(
         &mut self,
-        buffer: &str,
+        buffer: &[u8],
         request: &Request,
         encoding_field: &str,
     ) -> Result<Vec<u8>, Box<dyn Error>> {
-        // NOTE:: How to proceed
-        // First part will contain the encoding algorithm
-        // If chunked here, we get by chunk end decode.
-        // If no chunked we get everything and decode
         if let Some(encoding) = get_encoding(encoding_field) {
             if request.is_chunked() {
+                let mut chunk_handler = ChunkHandler::new();
                 let retval = vec![0u8; 0];
                 return Ok(retval);
             } else if let Some(length) = request.get_content_length() {
                 let body = self.handle_content_length_body(buffer, length)?;
-                let retval = uncompress(&body, encoding);
-                return Ok(retval);
+                return Ok(body);
             }
         }
         Err(Box::new(HttpError::Error400))
@@ -88,18 +98,38 @@ impl Worker {
 
     fn handle_content_length_body(
         &mut self,
-        buffer: &str,
+        buffer: &[u8],
         body_length: usize,
     ) -> Result<Vec<u8>, Box<dyn Error>> {
+        let remaining_buffer = self.read_remaining(buffer, body_length)?;
+        self.assemble_buffer_with_remaining(buffer, &remaining_buffer, body_length)
+    }
+
+    fn read_remaining(
+        &mut self,
+        buffer: &[u8],
+        body_length: usize,
+    ) -> Result<Vec<u8>, Box<dyn Error>> {
+        println!("body: {}, buffer: {}", body_length, buffer.len());
+        if body_length == buffer.len() {
+            return Ok(buffer.to_vec());
+        }
         let remaining_size = body_length - buffer.len();
         let mut remaining_buffer = Vec::with_capacity(remaining_size);
         self.socket.read_exact(&mut remaining_buffer)?;
+        Ok(remaining_buffer)
+    }
 
+    fn assemble_buffer_with_remaining(
+        &self,
+        buffer: &[u8],
+        remaining_buffer: &[u8],
+        body_length: usize,
+    ) -> Result<Vec<u8>, Box<dyn Error>> {
         let mut body = Vec::with_capacity(body_length);
-        body.extend_from_slice(buffer.as_bytes());
+        body.extend_from_slice(buffer);
         body.extend_from_slice(&remaining_buffer);
-
-        return Ok(body);
+        Ok(body)
     }
 }
 
@@ -107,13 +137,13 @@ fn is_header_finished(buffer: &str) -> bool {
     buffer.contains("\r\n\r\n")
 }
 
-fn prepare_buffer_for_body(buffer: String) -> String {
+fn prepare_buffer_for_body(buffer: String) -> Vec<u8> {
     let mut splits = buffer.split("\r\n\r\n");
     splits.next().unwrap();
     if let Some(remaining) = splits.next() {
-        remaining.to_string()
+        remaining.as_bytes().to_vec()
     } else {
-        String::new()
+        Vec::new()
     }
 }
 

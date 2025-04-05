@@ -11,6 +11,7 @@ trait ErrorResponse {
 pub enum HttpError {
     Error400,
     Error404,
+    Error415,
 }
 
 impl std::error::Error for HttpError {}
@@ -26,6 +27,12 @@ impl ErrorResponse for Box<HttpError> {
             }
             HttpError::Error404 => {
                 let mut file = std::fs::File::open("./html/404.html").unwrap();
+                let mut body = Vec::with_capacity(400);
+                let _ = file.read_to_end(&mut body);
+                Response::new(404, body, vec![], ContentType::TextHtml)
+            }
+            HttpError::Error415 => {
+                let mut file = std::fs::File::open("./html/415.html").unwrap();
                 let mut body = Vec::with_capacity(400);
                 let _ = file.read_to_end(&mut body);
                 Response::new(404, body, vec![], ContentType::TextHtml)

@@ -1,3 +1,4 @@
+pub mod chunk_handler;
 pub mod content_type;
 pub mod encoding;
 pub mod http_error;
