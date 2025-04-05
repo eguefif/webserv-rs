@@ -5,7 +5,7 @@ use webserv_rs::response::Response;
 
 fn handle_response(request: Request) -> Response {
     println!("Request:\n {}", request);
-    let content = std::fs::read_to_string("./index.html").unwrap();
+    let content = std::fs::read_to_string("./html/index.html").unwrap();
     Response::new(
         200,
         content.as_bytes().to_vec(),

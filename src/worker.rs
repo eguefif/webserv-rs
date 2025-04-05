@@ -1,4 +1,5 @@
 use crate::encoding::{uncompress, Encoding};
+use crate::http_error::{handle_error, HttpError};
 use crate::request::Request;
 use crate::response::Response;
 use std::error::Error;
@@ -16,12 +17,17 @@ impl Worker {
 
     pub fn run(&mut self, handle_client: fn(Request) -> Response) {
         loop {
-            if let Ok(request) = self.get_request() {
-                if let Some(request) = request {
-                    let response = handle_client(request);
-                    self.socket.write_all(&response.as_bytes()).unwrap();
+            let response = match self.get_request() {
+                Ok(request) => {
+                    if let Some(request) = request {
+                        handle_client(request)
+                    } else {
+                        break;
+                    }
                 }
-            }
+                Err(error) => handle_error(error),
+            };
+            self.socket.write_all(&response.as_bytes()).unwrap();
         }
     }
 
