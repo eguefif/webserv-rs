@@ -1,3 +1,6 @@
+use crate::content_type::ContentType;
+use chrono::prelude::*;
+
 #[allow(dead_code)]
 pub struct Response {
     version: String,
@@ -8,7 +11,13 @@ pub struct Response {
 }
 
 impl Response {
-    pub fn new(status: u32, body: Vec<u8>, headers: Vec<(String, String)>) -> Self {
+    pub fn new(
+        status: u32,
+        body: Vec<u8>,
+        headers: Vec<(String, String)>,
+        content_type: ContentType,
+    ) -> Self {
+        let headers = make_headers(&headers, body.len(), content_type);
         Self {
             version: "HTTP/1.1".to_string(),
             status,
@@ -17,6 +26,55 @@ impl Response {
             headers,
         }
     }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        let mut bytes_str = String::new();
+        bytes_str.push_str(&self.make_first_line());
+        bytes_str.push_str(&self.make_headers());
+        bytes_str.push_str("\r\n");
+
+        let mut retval = bytes_str.as_bytes().to_vec();
+        retval.extend_from_slice(&self.body);
+        retval
+    }
+
+    pub fn make_first_line(&self) -> String {
+        format!("{} {} {}\r\n", self.version, self.status, self.reason)
+    }
+
+    pub fn make_headers(&self) -> String {
+        let mut retval = String::new();
+        for (key, value) in self.headers.iter() {
+            retval.push_str(&format!("{}: {}\r\n", key, value))
+        }
+        retval
+    }
+}
+
+fn make_headers(
+    headers: &[(String, String)],
+    body_len: usize,
+    content_type: ContentType,
+) -> Vec<(String, String)> {
+    let mut retval = Vec::new();
+
+    for header in headers {
+        retval.push(header.clone());
+    }
+
+    retval.push(("Content-length".to_string(), format!("{}", body_len)));
+    retval.push(("Accept-Encoding".to_string(), "".to_string()));
+    retval.push(("Connection".to_string(), "Keep-Alive".to_string()));
+    retval.push(("Content-Type".to_string(), format!("{}", content_type)));
+    retval.push(("Date".to_string(), get_header_date()));
+    retval.push(("Server".to_string(), "webserv-rs".to_string()));
+
+    retval
+}
+
+fn get_header_date() -> String {
+    let now: DateTime<Utc> = Utc::now();
+    format!("{}", now.format("%A, %d %m %Y %H:%M:%S GMT"))
 }
 
 fn reason_phrase(status: u32) -> String {

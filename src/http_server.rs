@@ -1,4 +1,5 @@
 use crate::request::Request;
+use crate::response::Response;
 use crate::worker::Worker;
 use std::net::TcpListener;
 use std::thread;
@@ -14,7 +15,7 @@ impl HttpServer {
         })
     }
 
-    pub fn run(&mut self, handle_client: fn(Request)) -> std::io::Result<()> {
+    pub fn run(&mut self, handle_client: fn(Request) -> Response) -> std::io::Result<()> {
         for stream in self.listener.incoming() {
             match stream {
                 Ok(stream) => {
