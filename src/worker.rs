@@ -1,5 +1,4 @@
-use crate::encoding::Encoding;
-use crate::http_error::HttpError;
+use crate::encoding::{uncompress, Encoding};
 use crate::request::Request;
 use crate::response::Response;
 use std::error::Error;
@@ -73,7 +72,8 @@ impl Worker {
                 let retval = vec![0u8; 0];
                 return Ok(retval);
             } else if let Some(length) = request.get_content_length() {
-                let retval = vec![0u8; length];
+                let body = self.handle_content_length_body(buffer, length)?;
+                let retval = uncompress(&body, encoding);
                 return Ok(retval);
             }
         }
@@ -85,9 +85,13 @@ impl Worker {
         buffer: &str,
         body_length: usize,
     ) -> Result<Vec<u8>, Box<dyn Error>> {
+        let remaining_size = body_length - buffer.len();
+        let mut remaining_buffer = Vec::with_capacity(remaining_size);
+        self.socket.read_exact(&mut remaining_buffer)?;
+
         let mut body = Vec::with_capacity(body_length);
         body.extend_from_slice(buffer.as_bytes());
-        self.socket.read_exact(&mut body)?;
+        body.extend_from_slice(&remaining_buffer);
 
         return Ok(body);
     }
