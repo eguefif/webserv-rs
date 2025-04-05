@@ -50,6 +50,13 @@ impl Request {
         }
         None
     }
+
+    pub fn is_chunked(&self) -> bool {
+        if let Some(encoding) = self.get_value("Transfer-Encoding") {
+            return encoding.to_lowercase().contains("chunked");
+        }
+        false
+    }
 }
 
 fn get_method(response: &str) -> String {
