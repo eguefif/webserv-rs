@@ -33,7 +33,7 @@ impl Worker {
     }
 
     fn get_request(&mut self) -> Result<Option<Request>, Box<dyn Error>> {
-        let mut buffer = String::new();
+        let mut buffer = vec![0u8; 1024];
         let mut request;
         loop {
             let mut tmp = [0u8; 1024];
@@ -41,9 +41,9 @@ impl Worker {
             if n == 0 {
                 return Ok(None);
             }
-            buffer.push_str(&String::from_utf8_lossy(&tmp[..n]));
-            if is_header_finished(&buffer) {
-                request = Request::new(&buffer);
+            buffer.extend_from_slice(&tmp[..n]);
+            if let Some(index) = get_double_crcn_index(&buffer) {
+                request = Request::new(&String::from_utf8_lossy(&buffer[..index]));
                 if request.is_body() {
                     println!("size: {}\n{:?}", buffer.len(), buffer);
                     let buffer = prepare_buffer_for_body(buffer);
@@ -133,8 +133,25 @@ impl Worker {
     }
 }
 
-fn is_header_finished(buffer: &str) -> bool {
-    buffer.contains("\r\n\r\n")
+fn is_header_finished(buffer: &[u8]) -> bool {
+    if let Some(_) = get_double_crcn_index(buffer) {
+        true
+    } else {
+        false
+    }
+}
+
+fn get_double_crcn_index(buffer: &[u8]) -> Option<usize> {
+    for (i, _) in buffer.iter().enumerate() {
+        if i + 4 < buffer.len() {
+            if String::from_utf8_lossy(&buffer[i..i + 4]) == "\r\n\r\n" {
+                return Some(i);
+            }
+        } else {
+            break;
+        }
+    }
+    None
 }
 
 fn prepare_buffer_for_body(buffer: String) -> Vec<u8> {
