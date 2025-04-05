@@ -1,5 +1,6 @@
 use crate::request::Request;
-use std::io::Read;
+use crate::response::Response;
+use std::io::{Read, Write};
 use std::net::TcpStream;
 
 pub struct Worker {
@@ -11,11 +12,12 @@ impl Worker {
         Self { socket }
     }
 
-    pub fn run(&mut self, handle_client: fn(Request)) {
+    pub fn run(&mut self, handle_client: fn(Request) -> Response) {
         loop {
             if let Ok(request) = self.get_request() {
                 if let Some(request) = request {
-                    handle_client(request);
+                    let response = handle_client(request);
+                    self.socket.write_all(&response.as_bytes()).unwrap();
                 }
             }
         }
