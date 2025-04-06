@@ -5,25 +5,23 @@ use crate::request::Request;
 use crate::response::Response;
 use std::error::Error;
 use std::io::{Read, Write};
-use std::net::TcpStream;
 
 const MAX_HEADER_SIZE: usize = 16_000;
 pub const MAX_BODY_SIZE: usize = 1024 * 1024;
 
-pub struct Worker {
-    socket: TcpStream,
+pub struct Worker<T: Read + Write> {
+    socket: T,
     leftover: Vec<u8>,
     peer: String,
 }
 
-impl Worker {
-    pub fn new(socket: TcpStream) -> Result<Self, Box<dyn Error>> {
-        let peer = socket.peer_addr()?.to_string();
-        Ok(Self {
+impl<T: Read + Write> Worker<T> {
+    pub fn new(socket: T, peer: String) -> Self {
+        Self {
             socket,
             leftover: vec![0u8; 0],
             peer,
-        })
+        }
     }
 
     pub fn run(&mut self, handle_client: fn(Request) -> Response) {
