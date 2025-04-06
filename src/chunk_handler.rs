@@ -1,4 +1,6 @@
-use std::iter::Peekable;
+use std::{error::Error, iter::Peekable};
+
+use crate::http_error::HttpError;
 
 #[derive(PartialEq)]
 enum ChunkState {
@@ -16,7 +18,7 @@ pub struct ChunkHandler {
 }
 
 impl ChunkHandler {
-    pub fn new(leftover: &[u8]) -> Self {
+    pub fn new(leftover: &[u8]) -> Result<Self, Box<dyn Error>> {
         let mut chunk_handler = Self {
             size_str: vec![0u8; 0],
             size: 0,
@@ -25,9 +27,9 @@ impl ChunkHandler {
             state: ChunkState::Header,
         };
         if leftover.len() > 0 {
-            chunk_handler.parse_chunks(leftover);
+            chunk_handler.parse_chunks(leftover)?;
         }
-        chunk_handler
+        Ok(chunk_handler)
     }
 
     pub fn is_body_ready(&self) -> bool {
@@ -37,16 +39,16 @@ impl ChunkHandler {
         false
     }
 
-    pub fn parse_chunks(&mut self, buffer: &[u8]) {
+    pub fn parse_chunks(&mut self, buffer: &[u8]) -> Result<(), Box<dyn Error>> {
         let mut iter = buffer.iter().peekable();
         self.reinitialize_state();
         loop {
             match self.state {
                 ChunkState::Header => self.parse_header(&mut iter),
                 ChunkState::Body => self.parse_body(&mut iter),
-                ChunkState::Done => return,
-                ChunkState::WaitingMoreData => return,
-            }
+                ChunkState::Done => return Ok(()),
+                ChunkState::WaitingMoreData => return Ok(()),
+            }?;
         }
     }
 
@@ -60,7 +62,7 @@ impl ChunkHandler {
         }
     }
 
-    fn parse_header<'a, I>(&mut self, iter: &mut Peekable<I>)
+    fn parse_header<'a, I>(&mut self, iter: &mut Peekable<I>) -> Result<(), Box<dyn Error>>
     where
         I: Iterator<Item = &'a u8>,
     {
@@ -71,7 +73,7 @@ impl ChunkHandler {
                     self.size_str.clear();
                     self.state = ChunkState::Body;
                     iter.next();
-                    return;
+                    return Ok(());
                 } else {
                     self.size_str.push(*next);
                 }
@@ -81,18 +83,18 @@ impl ChunkHandler {
             }
         }
         self.state = ChunkState::WaitingMoreData;
+        Ok(())
     }
 
-    fn parse_body<'a, I>(&mut self, iter: &mut Peekable<I>)
+    fn parse_body<'a, I>(&mut self, iter: &mut Peekable<I>) -> Result<(), Box<dyn Error>>
     where
         I: Iterator<Item = &'a u8>,
     {
         if self.size == 0 {
-            iter.next();
-            iter.next();
+            expect_cr_cn(iter)?;
             self.leftover = iter.cloned().collect::<Vec<u8>>();
             self.state = ChunkState::Done;
-            return;
+            return Ok(());
         }
         while self.size != 0 {
             if let Some(next) = iter.next() {
@@ -104,11 +106,24 @@ impl ChunkHandler {
             self.size -= 1;
         }
         self.state = ChunkState::Header;
-        iter.next();
-        iter.next();
+        expect_cr_cn(iter)?;
+        Ok(())
     }
 }
 
 fn parse_size(size: &[u8]) -> usize {
     String::from_utf8_lossy(size).parse::<usize>().unwrap()
+}
+
+fn expect_cr_cn<'a, I>(iter: &mut Peekable<I>) -> Result<(), Box<dyn Error>>
+where
+    I: Iterator<Item = &'a u8>,
+{
+    if let None = iter.next() {
+        return Err(Box::new(HttpError::Error400));
+    }
+    if let None = iter.next() {
+        return Err(Box::new(HttpError::Error400));
+    }
+    Ok(())
 }
