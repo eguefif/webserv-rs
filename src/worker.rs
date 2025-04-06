@@ -7,6 +7,9 @@ use std::error::Error;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
+const MAX_HEADER_SIZE: usize = 16_000;
+pub const MAX_BODY_SIZE: usize = 10_000_000;
+
 pub struct Worker {
     socket: TcpStream,
     leftover: Vec<u8>,
@@ -49,7 +52,7 @@ impl Worker {
         if self.leftover.len() > 0 {
             buffer.extend_from_slice(&self.leftover);
         }
-        let request = loop {
+        while buffer.len() < MAX_HEADER_SIZE {
             let mut tmp = [0u8; 1024];
             let n = self.socket.read(&mut tmp)?;
             if n == 0 {
@@ -57,17 +60,22 @@ impl Worker {
             }
             buffer.extend_from_slice(&tmp[..n]);
             if let Some(index) = get_double_crcn_index(&buffer) {
-                let mut request = Request::new(&String::from_utf8_lossy(&buffer[..index]));
-                if request.is_body() {
-                    let buffer = &buffer[index + 4..];
-                    request.body = self.read_body(&buffer, &request)?;
-                } else {
-                    self.leftover = buffer[index + 4..].to_vec();
-                }
-                break request;
+                let request = self.process_packet(index, &buffer)?;
+                return Ok(Some(request));
             }
-        };
-        Ok(Some(request))
+        }
+        Err(Box::new(HttpError::Error400))
+    }
+
+    fn process_packet(&mut self, index: usize, buffer: &[u8]) -> Result<Request, Box<dyn Error>> {
+        let mut request = Request::new(&String::from_utf8_lossy(&buffer[..index]));
+        if request.is_body() {
+            let buffer = &buffer[index + 4..];
+            request.body = self.read_body(&buffer, &request)?;
+        } else {
+            self.leftover = buffer[index + 4..].to_vec();
+        }
+        Ok(request)
     }
 
     fn read_body(&mut self, buffer: &[u8], request: &Request) -> Result<Vec<u8>, Box<dyn Error>> {
@@ -79,6 +87,9 @@ impl Worker {
         if let Some(encoding) = request.get_value("Transfer-Encoding") {
             self.handle_chunked_body(buffer, encoding)
         } else if let Some(body_length) = request.get_content_length() {
+            if body_length > MAX_BODY_SIZE {
+                return Err(Box::new(HttpError::Error403));
+            }
             self.handle_content_length_body(buffer, body_length)
         } else {
             Err(Box::new(HttpError::Error400))

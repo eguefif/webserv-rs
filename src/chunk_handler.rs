@@ -1,3 +1,4 @@
+use crate::worker::MAX_BODY_SIZE;
 use std::{error::Error, iter::Peekable};
 
 use crate::http_error::HttpError;
@@ -40,6 +41,9 @@ impl ChunkHandler {
     }
 
     pub fn parse_chunks(&mut self, buffer: &[u8]) -> Result<(), Box<dyn Error>> {
+        if self.body.len() >= MAX_BODY_SIZE {
+            return Err(Box::new(HttpError::Error403));
+        }
         let mut iter = buffer.iter().peekable();
         self.reinitialize_state();
         loop {
