@@ -8,7 +8,7 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 
 const MAX_HEADER_SIZE: usize = 16_000;
-pub const MAX_BODY_SIZE: usize = 10_000_000;
+pub const MAX_BODY_SIZE: usize = 1024 * 1024;
 
 pub struct Worker {
     socket: TcpStream,
@@ -38,7 +38,10 @@ impl Worker {
                         break;
                     }
                 }
-                Err(error) => handle_error(error),
+                Err(error) => {
+                    handle_error(error);
+                    break;
+                }
             };
             if let Err(e) = self.socket.write_all(&response.as_bytes()) {
                 eprintln!("Error while writing in socket: {e}");
@@ -52,7 +55,7 @@ impl Worker {
         if self.leftover.len() > 0 {
             buffer.extend_from_slice(&self.leftover);
         }
-        while buffer.len() < MAX_HEADER_SIZE {
+        loop {
             let mut tmp = [0u8; 1024];
             let n = self.socket.read(&mut tmp)?;
             if n == 0 {
@@ -63,8 +66,10 @@ impl Worker {
                 let request = self.process_packet(index, &buffer)?;
                 return Ok(Some(request));
             }
+            if buffer.len() > MAX_HEADER_SIZE {
+                return Err(Box::new(HttpError::Error400));
+            }
         }
-        Err(Box::new(HttpError::Error400))
     }
 
     fn process_packet(&mut self, index: usize, buffer: &[u8]) -> Result<Request, Box<dyn Error>> {
@@ -88,7 +93,7 @@ impl Worker {
             self.handle_chunked_body(buffer, encoding)
         } else if let Some(body_length) = request.get_content_length() {
             if body_length > MAX_BODY_SIZE {
-                return Err(Box::new(HttpError::Error403));
+                return Err(Box::new(HttpError::Error413));
             }
             self.handle_content_length_body(buffer, body_length)
         } else {

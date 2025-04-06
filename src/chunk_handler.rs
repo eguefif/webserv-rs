@@ -42,7 +42,7 @@ impl ChunkHandler {
 
     pub fn parse_chunks(&mut self, buffer: &[u8]) -> Result<(), Box<dyn Error>> {
         if self.body.len() >= MAX_BODY_SIZE {
-            return Err(Box::new(HttpError::Error403));
+            return Err(Box::new(HttpError::Error413));
         }
         let mut iter = buffer.iter().peekable();
         self.reinitialize_state();
@@ -73,7 +73,7 @@ impl ChunkHandler {
         while let Some(next) = iter.next() {
             if let Some(peek) = iter.peek() {
                 if *next == 13 && **peek == 10 {
-                    self.size = parse_size(&self.size_str);
+                    self.size = parse_size(&self.size_str)?;
                     self.size_str.clear();
                     self.state = ChunkState::Body;
                     iter.next();
@@ -115,8 +115,12 @@ impl ChunkHandler {
     }
 }
 
-fn parse_size(size: &[u8]) -> usize {
-    String::from_utf8_lossy(size).parse::<usize>().unwrap()
+fn parse_size(size: &[u8]) -> Result<usize, Box<dyn Error>> {
+    if let Ok(retval) = String::from_utf8_lossy(size).parse::<usize>() {
+        Ok(retval)
+    } else {
+        Err(Box::new(HttpError::ErrorParsingChunkSize))
+    }
 }
 
 fn expect_cr_cn<'a, I>(iter: &mut Peekable<I>) -> Result<(), Box<dyn Error>>
