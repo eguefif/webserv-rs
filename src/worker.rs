@@ -58,6 +58,8 @@ impl Worker {
                 if request.is_body() {
                     let buffer = &buffer[index + 4..];
                     request.body = self.read_body(&buffer, &request)?;
+                } else {
+                    self.leftover = buffer[index + 4..].to_vec();
                 }
                 break request;
             }
@@ -119,7 +121,10 @@ impl Worker {
         buffer: &[u8],
         body_length: usize,
     ) -> Result<Vec<u8>, Box<dyn Error>> {
-        if body_length == buffer.len() {
+        if body_length < buffer.len() {
+            self.leftover = buffer[body_length..].to_vec();
+            Ok(buffer[..body_length].to_vec())
+        } else if body_length == buffer.len() {
             Ok(buffer.to_vec())
         } else {
             let remaining_buffer = self.read_remaining(buffer, body_length)?;
