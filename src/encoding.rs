@@ -17,8 +17,8 @@ pub fn uncompress(data: &[u8], encoding: Encoding) -> Result<Vec<u8>, Box<dyn Er
 
 fn gzip(data: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     let mut decoder = GzDecoder::new(&data[..]);
-    let mut retval = vec![0u8; 0];
-    decoder.read(&mut retval)?;
+    let mut retval = Vec::new();
+    decoder.read_to_end(&mut retval)?;
     Ok(retval)
 }
 

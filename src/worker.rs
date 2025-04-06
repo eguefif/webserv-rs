@@ -87,6 +87,7 @@ impl<T: Read + Write> Worker<T> {
     }
 
     fn get_body(&mut self, buffer: &[u8], request: &Request) -> Result<Vec<u8>, Box<dyn Error>> {
+        // TODO: this header field can also contain encoding like gzip or delfate
         if let Some(encoding) = request.get_value("Transfer-Encoding") {
             self.handle_chunked_body(buffer, encoding)
         } else if let Some(body_length) = request.get_content_length() {
@@ -161,7 +162,7 @@ impl<T: Read + Write> Worker<T> {
         if remaining_size == 0 {
             return Ok(buffer.to_vec());
         }
-        let mut remaining_buffer = Vec::with_capacity(remaining_size);
+        let mut remaining_buffer = vec![0u8; remaining_size];
         self.socket.read_exact(&mut remaining_buffer)?;
         Ok(remaining_buffer)
     }

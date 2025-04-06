@@ -43,7 +43,7 @@ impl ErrorResponse for Box<HttpError> {
                 let mut file = std::fs::File::open("./html/415.html").unwrap();
                 let mut body = Vec::with_capacity(400);
                 let _ = file.read_to_end(&mut body);
-                Response::new(404, body, vec![], ContentType::TextHtml)
+                Response::new(415, body, vec![], ContentType::TextHtml)
             }
 
             _ => {

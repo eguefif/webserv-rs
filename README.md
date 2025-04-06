@@ -2,8 +2,8 @@
 
 This is a learning project. Here are the learnings:
 * Rust threads and Tcp standard library.
-* HTTP procotol [RFC 9112](https://www.rfc-editor.org/rfc/rfc9112.html)
-* Websocket [RFC 6455](https://datatracker.ietf.org/doc/html/rfc6455)
+* HTTP protocol [RFC 9112](https://www.rfc-editor.org/rfc/rfc9112.html)
+* Websocket protocol [RFC 6455](https://datatracker.ietf.org/doc/html/rfc6455)
 
 
 ## Getting Started
