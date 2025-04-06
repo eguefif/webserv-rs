@@ -37,13 +37,17 @@ impl Worker {
                 }
                 Err(error) => handle_error(error),
             };
-            self.socket.write_all(&response.as_bytes()).unwrap();
+            if let Err(e) = self.socket.write_all(&response.as_bytes()) {
+                eprintln!("Error while writing in socket: {e}");
+                break;
+            }
         }
     }
 
     fn get_request(&mut self) -> Result<Option<Request>, Box<dyn Error>> {
         let mut buffer = vec![0u8; 1024];
         if self.leftover.len() > 0 {
+            println!("There are leftovers: {:?}", self.leftover);
             buffer.extend_from_slice(&self.leftover);
         }
         let request = loop {
@@ -106,7 +110,11 @@ impl Worker {
                     let mut tmp = [0u8; 1024];
                     let n = self.socket.read(&mut tmp)?;
                     chunk_handler.parse_chunks(&tmp[..n]);
+                    println!("Tmp: {:?}", &tmp[..n]);
                     if chunk_handler.is_body_ready() {
+                        if chunk_handler.leftover.len() > 0 {
+                            self.leftover = chunk_handler.leftover;
+                        }
                         break;
                     }
                 }

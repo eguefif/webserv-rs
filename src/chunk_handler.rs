@@ -9,6 +9,7 @@ enum ChunkState {
 }
 pub struct ChunkHandler {
     pub body: Vec<u8>,
+    pub leftover: Vec<u8>,
     size_str: Vec<u8>,
     size: usize,
     state: ChunkState,
@@ -20,6 +21,7 @@ impl ChunkHandler {
             size_str: vec![0u8; 0],
             size: 0,
             body: vec![0u8; 0],
+            leftover: vec![0u8; 0],
             state: ChunkState::Header,
         };
         if leftover.len() > 0 {
@@ -68,6 +70,7 @@ impl ChunkHandler {
                     self.size = parse_size(&self.size_str);
                     self.size_str.clear();
                     self.state = ChunkState::Body;
+                    iter.next();
                     return;
                 } else {
                     self.size_str.push(*next);
@@ -85,10 +88,12 @@ impl ChunkHandler {
         I: Iterator<Item = &'a u8>,
     {
         if self.size == 0 {
+            iter.next();
+            iter.next();
+            self.leftover = iter.cloned().collect::<Vec<u8>>();
             self.state = ChunkState::Done;
             return;
         }
-        iter.next();
         while self.size != 0 {
             if let Some(next) = iter.next() {
                 self.body.push(*next);
