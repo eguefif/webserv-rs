@@ -1,4 +1,4 @@
-use crate::chunk_handler::ChunkHandler;
+use crate::chunk_handler::parse_chunks;
 use crate::encoding::{uncompress, Encoding};
 use crate::http_error::{handle_error, HttpError};
 use crate::request::Request;
@@ -44,6 +44,7 @@ impl Worker {
             buffer.extend_from_slice(&tmp[..n]);
             if let Some(index) = get_double_crcn_index(&buffer) {
                 request = Request::new(&String::from_utf8_lossy(&buffer[..index]));
+                println!("Request: \n{}", request);
                 if request.is_body() {
                     let buffer = &buffer[index + 4..];
                     request.body = self.read_body(&buffer, &request)?;
@@ -61,7 +62,7 @@ impl Worker {
 
     fn get_body(&mut self, buffer: &[u8], request: &Request) -> Result<Vec<u8>, Box<dyn Error>> {
         if let Some(encoding) = request.get_value("Transfer-Encoding") {
-            self.handle_encoded_body(buffer, request, encoding)
+            self.handle_chunked_body(buffer, encoding)
         } else if let Some(body_length) = request.get_content_length() {
             self.handle_content_length_body(buffer, body_length)
         } else {
@@ -81,21 +82,27 @@ impl Worker {
         }
     }
 
-    fn handle_encoded_body(
+    fn handle_chunked_body(
         &mut self,
-        buffer: &[u8],
-        request: &Request,
+        leftover: &[u8],
         encoding_field: &str,
     ) -> Result<Vec<u8>, Box<dyn Error>> {
-        if let Some(encoding) = get_encoding(encoding_field) {
-            if request.is_chunked() {
-                let mut chunk_handler = ChunkHandler::new();
-                let retval = vec![0u8; 0];
-                return Ok(retval);
-            } else if let Some(length) = request.get_content_length() {
-                let body = self.handle_content_length_body(buffer, length)?;
-                return Ok(body);
+        if encoding_field.to_lowercase().contains("chunked") {
+            let mut buffer = vec![0u8; 0];
+            buffer.extend_from_slice(leftover);
+            let mut body = vec![0u8; 0];
+            loop {
+                let mut tmp = [0u8; 1024];
+                let n = self.socket.read(&mut tmp)?;
+                if n == 0 {
+                    break;
+                }
+                buffer.extend_from_slice(&tmp[..n]);
+                println!("buffer({n}): {:?}", buffer);
+                body = parse_chunks(&buffer);
+                println!("Body: {}", String::from_utf8_lossy(&body));
             }
+            return Ok(body);
         }
         Err(Box::new(HttpError::Error400))
     }
