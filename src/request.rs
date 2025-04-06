@@ -99,6 +99,10 @@ impl fmt::Display for Request {
         for (key, value) in self.headers.iter() {
             request.push_str(&format!("{}: {}\n", key, value));
         }
+        if self.body.len() > 0 {
+            request.push_str(&format!("\nbody ({})", self.body.len()));
+            request.push_str(&format!("{:?}", self.body));
+        }
         write!(f, "{}", request)
     }
 }
