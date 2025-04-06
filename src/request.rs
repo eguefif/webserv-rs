@@ -50,6 +50,10 @@ impl Request {
         }
         None
     }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        format!("{}", self).as_bytes().to_vec()
+    }
 }
 
 fn get_method(response: &str) -> String {
@@ -76,10 +80,9 @@ fn get_headers(response: &str) -> Vec<(String, String)> {
     lines.next().unwrap();
     for line in lines {
         if line.contains(":") {
-            let mut splits = line.split(":");
-            let key = splits.next().unwrap().trim().to_string();
-            let value = splits.next().unwrap().trim().to_string();
-            headers.push((key, value))
+            if let Some((key, value)) = line.split_once(":") {
+                headers.push((key.trim().to_string(), value.trim().to_string()));
+            }
         }
     }
     headers
@@ -88,13 +91,15 @@ fn get_headers(response: &str) -> Vec<(String, String)> {
 impl fmt::Display for Request {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut request = String::new();
-        request.push_str(&format!("{} {} {}\n", self.method, self.uri, self.version));
+        request.push_str(&format!(
+            "{} {} {}\r\n",
+            self.method, self.uri, self.version
+        ));
         for (key, value) in self.headers.iter() {
-            request.push_str(&format!("{}: {}\n", key, value));
+            request.push_str(&format!("{}: {}\r\n", key, value));
         }
         if self.body.len() > 0 {
-            request.push_str(&format!("\nbody ({})", self.body.len()));
-            request.push_str(&format!("{:?}", self.body));
+            request.push_str(&format!("\r\n{}", String::from_utf8_lossy(&self.body)));
         }
         write!(f, "{}", request)
     }

@@ -49,7 +49,7 @@ impl<T: Read + Write> Worker<T> {
     }
 
     fn get_request(&mut self) -> Result<Option<Request>, Box<dyn Error>> {
-        let mut buffer = vec![0u8; 1024];
+        let mut buffer = vec![0u8; 0];
         if self.leftover.len() > 0 {
             buffer.extend_from_slice(&self.leftover);
         }
@@ -197,5 +197,47 @@ fn get_encoding(encoding: &str) -> Option<Encoding> {
         "gzip" => Some(Encoding::Gzip),
         "deflate" => Some(Encoding::Deflate),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::content_type::ContentType;
+    use crate::mock::{TcpStreamMock, EXPECTED, REGULAR_PACKET};
+
+    use super::*;
+
+    fn get_worker() -> Worker<TcpStreamMock> {
+        let socket = TcpStreamMock::new(REGULAR_PACKET);
+        Worker {
+            peer: "127.0.0.1:8080".to_string(),
+            socket,
+            leftover: vec![0u8; 0],
+        }
+    }
+
+    fn handle_client_mock(request: Request) -> Response {
+        Response::new(200, request.as_bytes(), vec![], ContentType::TextHtml)
+    }
+
+    #[test]
+    fn it_should_parse_request_body() {
+        let mut worker = get_worker();
+        worker.run(handle_client_mock);
+
+        let request = String::from_utf8_lossy(&worker.socket.receive);
+        let mut request_splits = request.split("\r\n\r\n");
+        let _response_header = request_splits.next().unwrap();
+        let request_header = request_splits.next().unwrap();
+        let request_body = request_splits.next().unwrap();
+
+        let mut expected_splits = EXPECTED.split("\r\n\r\n");
+        let expected_header = expected_splits.next().unwrap();
+        let expected_body = expected_splits.next().unwrap();
+
+        assert_eq!(request_body, expected_body);
+        for header in request_header.split("\r\n").into_iter() {
+            assert!(expected_header.contains(&header));
+        }
     }
 }
