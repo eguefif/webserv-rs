@@ -1,4 +1,4 @@
-use crate::chunk_handler::parse_chunks;
+use crate::chunk_handler::ChunkHandler;
 use crate::encoding::{uncompress, Encoding};
 use crate::http_error::{handle_error, HttpError};
 use crate::request::Request;
@@ -88,21 +88,18 @@ impl Worker {
         encoding_field: &str,
     ) -> Result<Vec<u8>, Box<dyn Error>> {
         if encoding_field.to_lowercase().contains("chunked") {
-            let mut buffer = vec![0u8; 0];
-            buffer.extend_from_slice(leftover);
-            let mut body = vec![0u8; 0];
-            loop {
-                let mut tmp = [0u8; 1024];
-                let n = self.socket.read(&mut tmp)?;
-                if n == 0 {
-                    break;
+            let mut chunk_handler = ChunkHandler::new(leftover);
+            if !chunk_handler.is_body_ready() {
+                loop {
+                    let mut tmp = [0u8; 1024];
+                    let n = self.socket.read(&mut tmp)?;
+                    chunk_handler.parse_chunks(&tmp[..n]);
+                    if chunk_handler.is_body_ready() {
+                        break;
+                    }
                 }
-                buffer.extend_from_slice(&tmp[..n]);
-                println!("buffer({n}): {:?}", buffer);
-                body = parse_chunks(&buffer);
-                println!("Body: {}", String::from_utf8_lossy(&body));
             }
-            return Ok(body);
+            return Ok(chunk_handler.body);
         }
         Err(Box::new(HttpError::Error400))
     }
