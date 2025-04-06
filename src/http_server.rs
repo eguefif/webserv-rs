@@ -19,10 +19,13 @@ impl HttpServer {
         for stream in self.listener.incoming() {
             match stream {
                 Ok(stream) => {
-                    thread::spawn(move || Worker::new(stream).run(handle_client));
+                    thread::spawn(move || match stream.peer_addr() {
+                        Ok(peer) => Worker::new(stream, peer.to_string()).run(handle_client),
+                        Err(e) => eprintln!("Error while creating worker: {e}"),
+                    });
                 }
                 Err(e) => return Err(e),
-            }
+            };
         }
         Ok(())
     }
