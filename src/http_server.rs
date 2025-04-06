@@ -18,11 +18,12 @@ impl HttpServer {
     pub fn run(&mut self, handle_client: fn(Request) -> Response) -> std::io::Result<()> {
         for stream in self.listener.incoming() {
             match stream {
-                Ok(stream) => {
-                    thread::spawn(move || Worker::new(stream).run(handle_client));
-                }
+                Ok(stream) => thread::spawn(move || match Worker::new(stream) {
+                    Ok(mut worker) => worker.run(handle_client),
+                    Err(e) => eprintln!("Error while creating worker: {e}"),
+                }),
                 Err(e) => return Err(e),
-            }
+            };
         }
         Ok(())
     }

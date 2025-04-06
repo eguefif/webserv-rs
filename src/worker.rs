@@ -9,20 +9,29 @@ use std::net::TcpStream;
 
 pub struct Worker {
     socket: TcpStream,
+    leftover: Vec<u8>,
+    peer: String,
 }
 
 impl Worker {
-    pub fn new(socket: TcpStream) -> Self {
-        Self { socket }
+    pub fn new(socket: TcpStream) -> Result<Self, Box<dyn Error>> {
+        let peer = socket.peer_addr()?.to_string();
+        Ok(Self {
+            socket,
+            leftover: vec![0u8; 0],
+            peer,
+        })
     }
 
     pub fn run(&mut self, handle_client: fn(Request) -> Response) {
+        println!("New connection end with : {}", self.peer);
         loop {
             let response = match self.get_request() {
                 Ok(request) => {
                     if let Some(request) = request {
                         handle_client(request)
                     } else {
+                        println!("Connection end with : {}", self.peer);
                         break;
                     }
                 }
@@ -34,8 +43,10 @@ impl Worker {
 
     fn get_request(&mut self) -> Result<Option<Request>, Box<dyn Error>> {
         let mut buffer = vec![0u8; 1024];
-        let mut request;
-        loop {
+        if self.leftover.len() > 0 {
+            buffer.extend_from_slice(&self.leftover);
+        }
+        let request = loop {
             let mut tmp = [0u8; 1024];
             let n = self.socket.read(&mut tmp)?;
             if n == 0 {
@@ -43,15 +54,14 @@ impl Worker {
             }
             buffer.extend_from_slice(&tmp[..n]);
             if let Some(index) = get_double_crcn_index(&buffer) {
-                request = Request::new(&String::from_utf8_lossy(&buffer[..index]));
-                println!("Request: \n{}", request);
+                let mut request = Request::new(&String::from_utf8_lossy(&buffer[..index]));
                 if request.is_body() {
                     let buffer = &buffer[index + 4..];
                     request.body = self.read_body(&buffer, &request)?;
                 }
-                break;
+                break request;
             }
-        }
+        };
         Ok(Some(request))
     }
 
