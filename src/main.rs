@@ -4,8 +4,13 @@ use webserv_rs::request::Request;
 use webserv_rs::response::Response;
 
 fn handle_response(request: Request) -> Response {
-    //println!("Request:\n {}", request);
-    Response::new(200, request.body, vec![], ContentType::TextHtml)
+    let index = std::fs::read_to_string("./html/interface/index.html").unwrap();
+    Response::new(
+        200,
+        index.as_bytes().to_vec(),
+        vec![],
+        ContentType::TextHtml,
+    )
 }
 
 fn main() -> std::io::Result<()> {

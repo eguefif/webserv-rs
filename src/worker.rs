@@ -67,7 +67,9 @@ impl<T: Read + Write> Worker<T> {
                 return Ok(None);
             }
             buffer.extend_from_slice(&tmp[..n]);
+            println!("Still working on header: {:X?}", buffer);
             if let Some(index) = get_double_crcn_index(&buffer) {
+                println!("Got header");
                 let request = self.process_packet(index, &buffer)?;
                 return Ok(Some(request));
             }
@@ -188,7 +190,7 @@ impl<T: Read + Write> Worker<T> {
 
 fn get_double_crcn_index(buffer: &[u8]) -> Option<usize> {
     for (i, _) in buffer.iter().enumerate() {
-        if i + 4 < buffer.len() {
+        if i + 3 < buffer.len() {
             if String::from_utf8_lossy(&buffer[i..i + 4]) == "\r\n\r\n" {
                 return Some(i);
             }
