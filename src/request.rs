@@ -30,6 +30,20 @@ impl Request {
         None
     }
 
+    pub fn is_chunked(&self) -> bool {
+        if let Some(te) = self.get_value("Transfer-Encoding") {
+            if te.to_lowercase().trim() == "chunked" {
+                return true;
+            }
+            if let Some((_, last)) = te.rsplit_once(",") {
+                if last.trim().to_lowercase() == "chunked" {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
     pub fn is_body(&self) -> bool {
         if let Some(_) = self.get_value("Content-Length") {
             return true;
