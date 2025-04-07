@@ -123,7 +123,6 @@ impl<T: Read + Write> Worker<T> {
         leftover: &[u8],
         encoding_field: &str,
     ) -> Result<Vec<u8>, Box<dyn Error>> {
-        // TODO: this header field (encoding field) can also contain encoding like gzip or deflate
         if encoding_field.to_lowercase().contains("chunked") {
             let mut chunk_handler = ChunkHandler::new(leftover)?;
             if !chunk_handler.is_body_ready() {
