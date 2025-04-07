@@ -27,24 +27,28 @@ impl<T: Read + Write> Worker<T> {
     pub fn run(&mut self, handle_client: fn(Request) -> Response) {
         println!("New connection end with : {}", self.peer);
         loop {
-            let response = match self.get_request() {
-                Ok(request) => {
-                    if let Some(request) = request {
-                        handle_client(request)
-                    } else {
-                        println!("Connection end with : {}", self.peer);
-                        break;
-                    }
-                }
-                Err(error) => {
-                    handle_error(error);
+            if let Some(response) = self.get_response(handle_client) {
+                if let Err(e) = self.socket.write_all(&response.as_bytes()) {
+                    eprintln!("Error while writing in socket({}): {e}", self.peer);
                     break;
                 }
-            };
-            if let Err(e) = self.socket.write_all(&response.as_bytes()) {
-                eprintln!("Error while writing in socket: {e}");
+            } else {
                 break;
             }
+        }
+        println!("Connection end with : {}", self.peer);
+    }
+
+    fn get_response(&mut self, handle_client: fn(Request) -> Response) -> Option<Response> {
+        match self.get_request() {
+            Ok(request) => {
+                if let Some(request) = request {
+                    return Some(handle_client(request));
+                } else {
+                    return None;
+                }
+            }
+            Err(error) => return Some(handle_error(error)),
         }
     }
 
