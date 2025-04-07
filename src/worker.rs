@@ -32,6 +32,9 @@ impl<T: Read + Write> Worker<T> {
                     eprintln!("Error while writing in socket({}): {e}", self.peer);
                     break;
                 }
+                if response.is_error_status() {
+                    break;
+                }
             } else {
                 break;
             }
@@ -91,7 +94,6 @@ impl<T: Read + Write> Worker<T> {
     }
 
     fn get_body(&mut self, buffer: &[u8], request: &Request) -> Result<Vec<u8>, Box<dyn Error>> {
-        // TODO: this header field can also contain encoding like gzip or delfate
         if let Some(encoding) = request.get_value("Transfer-Encoding") {
             self.handle_chunked_body(buffer, encoding)
         } else if let Some(body_length) = request.get_content_length() {
@@ -121,6 +123,7 @@ impl<T: Read + Write> Worker<T> {
         leftover: &[u8],
         encoding_field: &str,
     ) -> Result<Vec<u8>, Box<dyn Error>> {
+        // TODO: this header field (encoding field) can also contain encoding like gzip or deflate
         if encoding_field.to_lowercase().contains("chunked") {
             let mut chunk_handler = ChunkHandler::new(leftover)?;
             if !chunk_handler.is_body_ready() {
@@ -208,12 +211,12 @@ fn get_encoding(encoding: &str) -> Option<Encoding> {
 #[cfg(test)]
 mod test {
     use crate::content_type::ContentType;
-    use crate::mock::{TcpStreamMock, EXPECTED, REGULAR_PACKET};
+    use crate::mock::{TcpStreamMock, CHUNKED, EXPECTED, REGULAR_PACKET};
 
     use super::*;
 
-    fn get_worker() -> Worker<TcpStreamMock> {
-        let socket = TcpStreamMock::new(REGULAR_PACKET);
+    fn get_worker(data: &[&[u8]]) -> Worker<TcpStreamMock> {
+        let socket = TcpStreamMock::new(data);
         Worker {
             peer: "127.0.0.1:8080".to_string(),
             socket,
@@ -227,7 +230,7 @@ mod test {
 
     #[test]
     fn it_should_parse_request_body() {
-        let mut worker = get_worker();
+        let mut worker = get_worker(REGULAR_PACKET);
         worker.run(handle_client_mock);
 
         let request = String::from_utf8_lossy(&worker.socket.receive);
@@ -244,5 +247,19 @@ mod test {
         for header in request_header.split("\r\n").into_iter() {
             assert!(expected_header.contains(&header));
         }
+    }
+
+    #[test]
+    fn it_should_parse_request_chunked_body() {
+        let mut worker = get_worker(CHUNKED);
+        worker.run(handle_client_mock);
+
+        let request = String::from_utf8_lossy(&worker.socket.receive);
+        let mut request_splits = request.split("\r\n\r\n");
+        request_splits.next().unwrap();
+        request_splits.next().unwrap();
+        let request_body = request_splits.next().unwrap();
+
+        assert_eq!(request_body, "HelloWorldfromthesky");
     }
 }
