@@ -27,6 +27,9 @@ impl Response {
         }
     }
 
+    pub fn is_error_status(&self) -> bool {
+        self.status >= 400
+    }
     pub fn as_bytes(&self) -> Vec<u8> {
         let mut bytes_str = String::new();
         bytes_str.push_str(&self.make_first_line());
