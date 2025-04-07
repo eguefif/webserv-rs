@@ -94,8 +94,8 @@ impl<T: Read + Write> Worker<T> {
     }
 
     fn get_body(&mut self, buffer: &[u8], request: &Request) -> Result<Vec<u8>, Box<dyn Error>> {
-        if let Some(encoding) = request.get_value("Transfer-Encoding") {
-            self.handle_chunked_body(buffer, encoding)
+        if request.is_chunked() {
+            self.handle_chunked_body(buffer)
         } else if let Some(body_length) = request.get_content_length() {
             if body_length > MAX_BODY_SIZE {
                 return Err(Box::new(HttpError::Error413));
@@ -107,41 +107,37 @@ impl<T: Read + Write> Worker<T> {
     }
 
     fn uncompress(&mut self, body: &[u8], request: &Request) -> Result<Vec<u8>, Box<dyn Error>> {
-        if let Some(encoding) = request.get_value("Content-Encoding") {
-            if let Some(encoding) = get_encoding(encoding) {
-                uncompress(&body, encoding)
-            } else {
-                return Err(Box::new(HttpError::Error415));
+        if let Some(encodings) = request.get_value("Transfer-Encoding") {
+            let mut body = body.to_vec();
+            for encoding in encodings.split(',').rev() {
+                if let Some(encoding) = get_encoding(encoding) {
+                    body = uncompress(&body, encoding)?;
+                } else {
+                    return Err(Box::new(HttpError::Error400));
+                };
             }
+            Ok(body)
         } else {
             Ok(body.to_vec())
         }
     }
 
-    fn handle_chunked_body(
-        &mut self,
-        leftover: &[u8],
-        encoding_field: &str,
-    ) -> Result<Vec<u8>, Box<dyn Error>> {
-        // TODO: this header field (encoding field) can also contain encoding like gzip or deflate
-        if encoding_field.to_lowercase().contains("chunked") {
-            let mut chunk_handler = ChunkHandler::new(leftover)?;
-            if !chunk_handler.is_body_ready() {
-                loop {
-                    let mut tmp = [0u8; 1024];
-                    let n = self.socket.read(&mut tmp)?;
-                    chunk_handler.parse_chunks(&tmp[..n])?;
-                    if chunk_handler.is_body_ready() {
-                        if chunk_handler.leftover.len() > 0 {
-                            self.leftover = chunk_handler.leftover;
-                        }
-                        break;
+    fn handle_chunked_body(&mut self, leftover: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
+        let mut chunk_handler = ChunkHandler::new(leftover)?;
+        if !chunk_handler.is_body_ready() {
+            loop {
+                let mut tmp = [0u8; 1024];
+                let n = self.socket.read(&mut tmp)?;
+                chunk_handler.parse_chunks(&tmp[..n])?;
+                if chunk_handler.is_body_ready() {
+                    if chunk_handler.leftover.len() > 0 {
+                        self.leftover = chunk_handler.leftover;
                     }
+                    break;
                 }
             }
-            return Ok(chunk_handler.body);
         }
-        Err(Box::new(HttpError::Error400))
+        return Ok(chunk_handler.body);
     }
 
     fn handle_content_length_body(
