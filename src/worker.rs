@@ -25,7 +25,6 @@ impl<T: Read + Write> Worker<T> {
     }
 
     pub fn run(&mut self, handle_client: fn(Request) -> Response) {
-        println!("New connection end with : {}", self.peer);
         loop {
             if let Some(response) = self.get_response(handle_client) {
                 if let Err(e) = self.socket.write_all(&response.as_bytes()) {
@@ -67,9 +66,7 @@ impl<T: Read + Write> Worker<T> {
                 return Ok(None);
             }
             buffer.extend_from_slice(&tmp[..n]);
-            println!("Still working on header: {:X?}", buffer);
             if let Some(index) = get_double_crcn_index(&buffer) {
-                println!("Got header");
                 let request = self.process_packet(index, &buffer)?;
                 return Ok(Some(request));
             }

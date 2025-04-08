@@ -3,11 +3,11 @@ use std::fmt;
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Request {
-    method: String,
-    uri: String,
-    version: String,
-    headers: Vec<(String, String)>,
+    pub uri: String,
     pub body: Vec<u8>,
+    pub method: String,
+    pub version: String,
+    pub headers: Vec<(String, String)>,
 }
 
 impl Request {
