@@ -7,6 +7,7 @@ pub enum ContentType {
     CSS,
     Icon,
     Image(String),
+    Json,
 }
 
 impl fmt::Display for ContentType {
@@ -17,6 +18,7 @@ impl fmt::Display for ContentType {
             ContentType::JS => write!(f, "text/javascript; charset=utf-8"),
             ContentType::CSS => write!(f, "text/css; charset=utf-8"),
             ContentType::Icon => write!(f, "image/x-icon"),
+            ContentType::Json => write!(f, "application/json"),
             ContentType::Image(image_type) => write!(f, "image/{}", image_type),
         }
     }
