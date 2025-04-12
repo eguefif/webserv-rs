@@ -8,6 +8,7 @@ pub enum ContentType {
     Icon,
     Image(String),
     Json,
+    SVG,
 }
 
 impl fmt::Display for ContentType {
@@ -19,6 +20,7 @@ impl fmt::Display for ContentType {
             ContentType::CSS => write!(f, "text/css; charset=utf-8"),
             ContentType::Icon => write!(f, "image/x-icon"),
             ContentType::Json => write!(f, "application/json"),
+            ContentType::SVG => write!(f, "application/svg+xml"),
             ContentType::Image(image_type) => write!(f, "image/{}", image_type),
         }
     }
