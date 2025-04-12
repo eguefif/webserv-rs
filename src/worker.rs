@@ -7,7 +7,7 @@ use std::error::Error;
 use std::io::{Read, Write};
 
 const MAX_HEADER_SIZE: usize = 16_000;
-pub const MAX_BODY_SIZE: usize = 1024 * 1024;
+pub const MAX_BODY_SIZE: usize = 1024 * 1024 * 10;
 
 pub struct Worker<T: Read + Write> {
     socket: T,

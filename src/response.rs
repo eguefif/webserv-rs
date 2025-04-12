@@ -3,11 +3,11 @@ use chrono::prelude::*;
 
 #[allow(dead_code)]
 pub struct Response {
-    version: String,
-    status: u32,
-    reason: String,
-    headers: Vec<(String, String)>,
-    body: Vec<u8>,
+    pub version: String,
+    pub status: u32,
+    pub reason: String,
+    pub headers: Vec<(String, String)>,
+    pub body: Vec<u8>,
 }
 
 impl Response {

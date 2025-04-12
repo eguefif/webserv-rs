@@ -20,7 +20,7 @@ impl fmt::Display for ContentType {
             ContentType::CSS => write!(f, "text/css; charset=utf-8"),
             ContentType::Icon => write!(f, "image/x-icon"),
             ContentType::Json => write!(f, "application/json"),
-            ContentType::SVG => write!(f, "application/svg+xml"),
+            ContentType::SVG => write!(f, "image/svg+xml"),
             ContentType::Image(image_type) => write!(f, "image/{}", image_type),
         }
     }
