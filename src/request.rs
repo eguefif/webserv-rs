@@ -1,3 +1,13 @@
+//! Request struct that carry the HTTP request data.
+//!
+//! The Request fist line can be assed with the following attributes:
+//! * uri
+//! * method
+//! * http version
+//! * body
+//! * headers
+//!
+//! Headers are a Vec<(String, String)> struct.
 use std::fmt;
 
 #[allow(dead_code)]
@@ -21,6 +31,7 @@ impl Request {
         }
     }
 
+    // Retrieve the value of the given header.
     pub fn get_value(&self, key: &str) -> Option<&str> {
         for (header_key, value) in self.headers.iter() {
             if header_key == key {
@@ -30,6 +41,7 @@ impl Request {
         None
     }
 
+    // Check if HTTP packed is chunked
     pub fn is_chunked(&self) -> bool {
         if let Some(te) = self.get_value("Transfer-Encoding") {
             if te.to_lowercase().trim() == "chunked" {

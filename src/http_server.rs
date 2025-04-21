@@ -1,3 +1,27 @@
+//! Http Server module
+//!
+//! This server spawn thread and handle request using the users' handler. The handler
+//! provided by the user needs to take a [Request] as parameters and return a [Response].
+//!
+//! # Example
+//! ```Rust
+//!use webserv_rs::http_server::HttpServer;
+//!use webserv_rs::content_type::ContentType;
+//!use webserv_rs::request::Request;
+//!use webserv_rs::response::Response;
+//!
+//!
+//!fn handle_client(request: Request) -> Response {
+//!    println!("Request: {}", request);
+//!    Response::new(200, "Hello, World".as_bytes().to_vec(), vec![], ContentType::TextHtml)
+//!}
+//!
+//!fn main() -> std::io::Result<()> {
+//!    let mut server = HttpServer::new("127.0.0.1", 8080)?;
+//!    server.run(handle_client)?;
+//!
+//!    Ok(())
+//!}
 use crate::request::Request;
 use crate::response::Response;
 use crate::worker::Worker;

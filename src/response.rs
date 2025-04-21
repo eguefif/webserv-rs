@@ -1,3 +1,17 @@
+//! Response struct return by the HTTP connection handler
+//!
+//! # Example:
+//! ```rust
+//! fn handle_client(_: Request) -> response {
+//!     Response::new(
+//!     200,
+//!     "Hello, World".as_bytes().to_vec(),
+//!     vec![("x-cookie".to_string(), "1234".to_string())],
+//!     ContentType::TextHtml]
+//!     )
+//! }
+//! ```
+//!     
 use crate::content_type::ContentType;
 use chrono::prelude::*;
 
